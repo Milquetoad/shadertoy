@@ -1,12 +1,16 @@
 package shadertoy;
 
+import java.util.List;
+
 import jvre.core.AttribFormat;
 import jvre.core.Buffer;
 import jvre.core.Pipeline;
 import jvre.core.PipelineSpec;
 import jvre.core.RenderTarget;
 import jvre.core.Renderer;
+import jvre.core.ShaderCompileException;
 import jvre.core.ShaderCompiler;
+import jvre.core.ShaderDiagnostic;
 import jvre.core.Stage;
 import jvre.core.Texture;
 import jvre.core.VertexLayout;
@@ -71,6 +75,19 @@ public final class ShaderPane {
         width = newWidth;
         height = newHeight;
         target = renderer.createRenderTarget(width, height);
+    }
+
+    /** Hot-swap a new user shader body into the running pipeline. On success returns
+     *  an empty list; on a compile error returns the diagnostics and leaves the
+     *  previously-working shader running (jvre's reloadShaders is last-good-on-error).
+     *  Call between frames, never inside {@link #render}. */
+    public List<ShaderDiagnostic> reload(String userBody) {
+        try {
+            pipeline.reloadShaders(ShaderTemplate.VERTEX, ShaderTemplate.fragment(userBody));
+            return List.of();
+        } catch (ShaderCompileException e) {
+            return e.errors();
+        }
     }
 
     /** Render the shader into the offscreen target for this frame. */

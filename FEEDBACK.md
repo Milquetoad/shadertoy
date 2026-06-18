@@ -54,3 +54,25 @@ dogfood.
 - `[note]` Window resize works (swapchain recreated to 3840x2001 on this 4K display);
   `ShaderPane.resize` recreates the target via the documented waitIdle/close/create
   dance without issue.
+
+### 2026-06-18 -- M2 live editor (jvre 1.2.1)
+
+- `[win]` `loadFont(path, size)` resolves resources off the CONSUMER's classpath, not
+  just jvre's own jar -- bundling `/fonts/JetBrainsMono-Regular.ttf` in our resources
+  and loading it Just Worked.
+- `[win]` `pipeline.reloadShaders(vert, frag)` hot-swap is exactly what live editing
+  needs: last-good-on-error (a broken edit keeps the previous shader running) and
+  structured `ShaderDiagnostic.line()` that maps cleanly back to editor lines via a
+  fixed prologue offset. Recompiled ~dozens of times in a session with no leak/crash.
+- `[win]` `pushClip/popClip` is all the editor needed to clip text + gutter + the
+  error panel to the pane.
+- `[gap]` The `Key` enum has letters, digits, arrows, F-keys and modifiers, but NO
+  punctuation/OEM keys (no EQUAL, MINUS, COMMA, PERIOD, SLASH, BRACKETs, etc.). That
+  blocks common editor bindings like Ctrl+'+' / Ctrl+'-' for zoom and Ctrl+'/' for
+  comment. Worked around zoom with Ctrl+mouse-wheel. Candidate jvre addition.
+- `[note]` `Renderer2D` works in framebuffer pixels and `contentScaleY` is constant
+  per monitor, so neither alone is the right basis for sizing a resizable editor.
+  Drove UI scale from render height instead (small window -> small text). Not a jvre
+  bug -- just a sizing lesson; a documented "logical vs framebuffer" note would help.
+- `[note]` jvre ships one proportional font (DejaVu Sans); a code editor wants
+  monospace, so bundling one is on the consumer. Expected, not a gap.
