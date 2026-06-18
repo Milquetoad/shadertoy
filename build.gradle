@@ -1,0 +1,57 @@
+// Shadertoy clone -- a dogfood of jvre, consumed exactly as an external user would:
+// the published Maven Central artifact plus the per-OS LWJGL natives. We never
+// depend on the jvre source tree.
+plugins {
+    id 'application'
+}
+
+repositories {
+    mavenCentral()
+    maven { url 'https://jitpack.io' }   // fallback distribution for jvre
+}
+
+// The one platform-specific knob. LWJGL ships its native binaries under an OS
+// classifier; switch this for Linux/macOS (natives-linux, natives-macos,
+// natives-macos-arm64). jvre's POM brings the LWJGL *api* jars transitively, but
+// a POM can't know your platform -- the natives are the consumer's job.
+ext {
+    lwjglNatives = 'natives-windows'
+}
+
+dependencies {
+    // The whole point: depend on jvre like any other library.
+    implementation 'io.github.milquetoad:jvre:1.2.1'
+
+    // Import the same LWJGL BOM jvre uses (3.3.4) so our natives line up with the
+    // exact LWJGL version jvre was built against -- no version pinned per line.
+    implementation platform('org.lwjgl:lwjgl-bom:3.3.4')
+
+    // Native binaries for every LWJGL module jvre loads at runtime. Versions come
+    // from the BOM above; the empty version slot (::) means "let the BOM decide".
+    // (lwjgl-vulkan has no natives -- Vulkan comes from the GPU driver.)
+    runtimeOnly "org.lwjgl:lwjgl::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-glfw::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-vma::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-shaderc::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-spvc::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-stb::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-msdfgen::$lwjglNatives"
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+application {
+    mainClass = 'shadertoy.Main'
+}
+
+tasks.named('run') {
+    // -XstartOnFirstThread is required by GLFW on macOS and is an unrecognised
+    // option elsewhere, so add it only on macOS.
+    if (org.gradle.internal.os.OperatingSystem.current().isMacOsX()) {
+        jvmArgs '-XstartOnFirstThread'
+    }
+}

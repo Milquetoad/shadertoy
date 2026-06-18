@@ -1,0 +1,15 @@
+.gradle/
+build/
+# Keep the wrapper jar (gradle/wrapper/gradle-wrapper.jar) committed.
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# OS
+Thumbs.db
+.DS_Store

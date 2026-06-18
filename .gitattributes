@@ -1,0 +1,13 @@
+# Normalize text to LF in the repo.
+* text=auto eol=lf
+
+# The Gradle launcher must stay LF (it's run by /bin/sh); the .bat must stay CRLF.
+gradlew        text eol=lf
+*.sh           text eol=lf
+gradlew.bat    text eol=crlf
+*.bat          text eol=crlf
+
+# Binary assets -- never touch line endings.
+*.jar          binary
+*.png          binary
+*.ttf          binary
