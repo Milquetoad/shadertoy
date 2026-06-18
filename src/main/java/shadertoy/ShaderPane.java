@@ -49,7 +49,7 @@ public final class ShaderPane {
                 .vertexShader(vert)
                 .fragmentShader(frag)
                 .vertexLayout(layout)
-                .pushConstants(3 * Float.BYTES, Stage.FRAGMENT)   // vec2 iResolution + float iTime
+                .uniformBuffer(Uniforms.FLOAT_COUNT * Float.BYTES, Stage.FRAGMENT)  // the Shadertoy uniform block
                 .label("shader-pane")
                 .build());
 
@@ -90,12 +90,13 @@ public final class ShaderPane {
         }
     }
 
-    /** Render the shader into the offscreen target for this frame. */
-    public void render(float time) {
+    /** Render the shader into the offscreen target for this frame, with the packed
+     *  Shadertoy uniform block (see {@link Uniforms#pack}). */
+    public void render(float[] uniforms) {
         renderer.drawToTarget(target, frame -> {
             frame.bind(pipeline);
+            frame.uniform(uniforms);              // write the UBO before the draw binds it
             frame.bindVertexBuffer(fullscreenTri);
-            frame.pushConstants(new float[] { width, height, time });
             frame.draw(3);
         });
     }

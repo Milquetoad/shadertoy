@@ -60,6 +60,8 @@ public final class Main {
         Font mono = renderer.loadFont("/fonts/JetBrainsMono-Regular.ttf", 64f);
         Editor editor = new Editor(mono, FONT_SIZE, DEFAULT_SHADER.stripTrailing());
         TopBar topBar = new TopBar(mono);
+        ShaderControls controls = new ShaderControls(mono);
+        Uniforms uniforms = new Uniforms();
 
         int initSplit = Math.round(g.width() * 0.5f);
         ShaderPane shaderPane = new ShaderPane(renderer, g.width() - initSplit, g.height(), editor.text());
@@ -85,6 +87,7 @@ public final class Main {
             float scale = Math.max(0.5f, h / REFERENCE_HEIGHT);
             int barH = Math.round(topBar.height(scale));
             int paneH = Math.max(1, h - barH);
+            float controlsH = controls.height(scale);
             editor.setViewport(0, barH, split, paneH, scale);
 
             // 1) edit -> mark dirty
@@ -92,6 +95,9 @@ public final class Main {
                 dirty = true;
                 lastEdit = renderer.time();
             }
+            // Advance the Shadertoy clock and sample the mouse over the shader pane
+            // (excluding the controls strip at the bottom).
+            uniforms.update(in, dt, split, barH, shaderW, paneH, controlsH);
             // Drag-and-drop a text file to import it as the shader.
             String[] dropped = in.droppedFiles();
             if (dropped.length > 0) {
@@ -117,14 +123,20 @@ public final class Main {
 
             // 3) render the shader offscreen, sized to its pane
             shaderPane.resize(shaderW, paneH);
-            shaderPane.render(renderer.time());
+            shaderPane.render(uniforms.pack(shaderW, paneH));
 
-            // 4) composite: top bar, editor left, shader right, errors over the editor
+            // 4) composite: top bar, editor left, shader right, errors + controls
             g.begin();
             editor.render(g, errorLines);
             g.image(shaderPane.texture(), split, barH, shaderW, paneH);
             g.fillRect(split - 1, barH, 2, paneH, divider);
             drawErrorPanel(g, errors, split, h, scale);
+            switch (controls.draw(g, in, split, h, shaderW, scale,
+                    uniforms.paused(), uniforms.time(), uniforms.fps())) {
+                case TOGGLE_PAUSE -> uniforms.togglePause();
+                case RESTART -> uniforms.restart();
+                case NONE -> { }
+            }
             switch (topBar.draw(g, in, w, scale, editor.zoomPercent())) {
                 case RESET -> {
                     editor.loadSource(DEFAULT_SHADER.stripTrailing());

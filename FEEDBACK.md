@@ -76,3 +76,17 @@ dogfood.
   bug -- just a sizing lesson; a documented "logical vs framebuffer" note would help.
 - `[note]` jvre ships one proportional font (DejaVu Sans); a code editor wants
   monospace, so bundling one is on the consumer. Expected, not a gap.
+
+### 2026-06-18 -- M3 uniform parity + time controls (jvre 1.2.1)
+
+- `[win]` Full Shadertoy uniform set fed through a single std140 UBO
+  (`.uniformBuffer(64, FRAGMENT)` + `frame.uniform(float[16])`). An ANONYMOUS uniform
+  block makes the members (iResolution/iTime/iMouse/...) visible as plain globals,
+  exactly how shaders reference them -- jvre accepted it with no fuss.
+- `[win]` Real shadertoy.com shaders mostly run unmodified once the uniforms exist;
+  pasted several and they worked. One looked slightly off -- TODO investigate (likely
+  needs multipass buffers/channels in M4, or is sensitive to the 16-bit default
+  target precision).
+- `[note]` `frame.uniform(float[])` is the only UBO upload path, so an integer member
+  (iFrame) has to be packed as `Float.intBitsToFloat(n)`. Works perfectly, but a
+  typed/byte-buffer uniform overload would be a touch more ergonomic. Minor.
