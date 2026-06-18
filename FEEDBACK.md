@@ -39,3 +39,18 @@ dogfood.
     fixed upstream -> clone consumes the fix.
 - `[win]` M0 runs: window opens, NVIDIA RTX 4090 picked, swapchain (3 images, FIFO),
   4x MSAA, DejaVuSans SDF atlas baked, two-pane shell renders, clean teardown.
+
+### 2026-06-18 -- M1 (jvre 1.2.1)
+
+- `[win]` Full shader path works first try: runtime GLSL compile
+  (`ShaderCompiler.compileFragment`) -> L1 pipeline with push constants -> fullscreen
+  triangle -> `drawToTarget(RenderTarget)` -> composite via `g.image(target.texture())`
+  beside a Renderer2D pane. The "true simultaneous two panes" that was the hard
+  milestone under jvre 1.0 is trivial once RTT exists.
+- `[win]` RTT orientation is sane: a render target sampled with `g.image` is NOT
+  Y-flipped relative to the swapchain. With a `gl_FragCoord.y` flip in the wrapper to
+  honour Shadertoy's bottom-left origin, a uv probe paints green top-left as expected.
+  No surprise double-flip to work around.
+- `[note]` Window resize works (swapchain recreated to 3840x2001 on this 4K display);
+  `ShaderPane.resize` recreates the target via the documented waitIdle/close/create
+  dance without issue.
