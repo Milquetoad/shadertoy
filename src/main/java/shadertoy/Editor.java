@@ -33,7 +33,7 @@ public final class Editor {
     private static final Color SELECTION  = Color.rgba(72, 104, 176, 95);
     private static final Color ERROR_FG   = Color.rgb(240, 92, 92);
 
-    private final Document doc;
+    private Document doc;          // the pass currently being edited (swapped on tab change)
     private final Font font;
     private final float baseFontSize;
     private final KeyRepeat repeat = new KeyRepeat();
@@ -50,14 +50,25 @@ public final class Editor {
     private boolean dragging;     // left button held after pressing in the pane
     private int visibleLines = 1; // computed during render, used by PageUp/Down
 
-    public Editor(Font font, float baseFontSize, String initial) {
+    public Editor(Font font, float baseFontSize, Document initial) {
         this.font = font;
         this.baseFontSize = baseFontSize;
-        this.doc = new Document(initial);
+        this.doc = initial;
     }
 
     public String text() {
         return doc.text();
+    }
+
+    /** Switch which document the editor is editing (on a tab change). Resets the view
+     *  but not the document's own caret/undo, which belong to the pass. No-op if it is
+     *  already the current document, so the host can call this every frame safely. */
+    public void setDocument(Document d) {
+        if (d == doc) return;
+        doc = d;
+        scrollY = 0f;
+        blink = 0f;
+        dragging = false;
     }
 
     /** Current zoom as a percentage (for the top bar's readout). */

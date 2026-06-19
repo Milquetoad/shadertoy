@@ -5,10 +5,10 @@ package shadertoy;
  * complete GLSL pair: a fullscreen-triangle vertex shader plus a fragment shader that
  * supplies the Shadertoy environment and calls the user's mainImage.
  *
- * The environment uniforms arrive in a single std140 uniform block at binding 0. The
- * block is ANONYMOUS, so its members are visible as plain globals -- {@code
- * iResolution}, {@code iTime}, etc. -- exactly as a shader expects to reference them.
- * The byte layout here must match {@link Uniforms#pack}.
+ * The uniforms arrive in an anonymous std140 block at binding 0 (so iResolution,
+ * iTime, etc. are plain globals, matching {@link Uniforms#pack}). The four input
+ * channels are sampler2Ds at bindings 1-4; iChannelResolution is filled from the
+ * bound channel sizes each frame.
  */
 public final class ShaderTemplate {
 
@@ -24,9 +24,6 @@ public final class ShaderTemplate {
         }
         """;
 
-    // Fragment prologue: the Shadertoy environment. The user's first line follows
-    // immediately after, which is what USER_LINE_OFFSET counts so compile errors map
-    // back to editor lines.
     private static final String FRAG_PROLOGUE = """
         #version 450
         layout(location = 0) out vec4 _outColor;
@@ -44,10 +41,16 @@ public final class ShaderTemplate {
             float iSampleRate;
         };
 
-        // Channel inputs (iChannel0..3) arrive in M4; declare zeroed placeholders now
-        // so shaders that reference these still compile.
-        const vec3  iChannelResolution[4] = vec3[4](vec3(0.0), vec3(0.0), vec3(0.0), vec3(0.0));
-        const float iChannelTime[4]       = float[4](0.0, 0.0, 0.0, 0.0);
+        // Input channels: iChannel0..3 at bindings 1..4. Unassigned channels are bound
+        // to a 1x1 dummy texture by the host.
+        layout(set = 0, binding = 1) uniform sampler2D iChannel0;
+        layout(set = 0, binding = 2) uniform sampler2D iChannel1;
+        layout(set = 0, binding = 3) uniform sampler2D iChannel2;
+        layout(set = 0, binding = 4) uniform sampler2D iChannel3;
+
+        // Filled in main() from the bound channel sizes (Shadertoy exposes these).
+        vec3  iChannelResolution[4];
+        float iChannelTime[4];
 
         // ---- user shader below ----
         """;
@@ -56,6 +59,12 @@ public final class ShaderTemplate {
 
         // ---- host entry point ----
         void main() {
+            iChannelResolution[0] = vec3(textureSize(iChannel0, 0), 1.0);
+            iChannelResolution[1] = vec3(textureSize(iChannel1, 0), 1.0);
+            iChannelResolution[2] = vec3(textureSize(iChannel2, 0), 1.0);
+            iChannelResolution[3] = vec3(textureSize(iChannel3, 0), 1.0);
+            iChannelTime[0] = iTime; iChannelTime[1] = iTime;
+            iChannelTime[2] = iTime; iChannelTime[3] = iTime;
             // Vulkan's gl_FragCoord is top-left origin; Shadertoy's fragCoord is
             // bottom-left, so flip Y to match what shaders expect.
             vec2 fragCoord = vec2(gl_FragCoord.x, iResolution.y - gl_FragCoord.y);

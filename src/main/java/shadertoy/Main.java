@@ -1,6 +1,5 @@
 package shadertoy;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -11,22 +10,21 @@ import jvre.core.Instance;
 import jvre.core.Renderer;
 import jvre.core.Renderer2D;
 import jvre.core.RendererOptions;
-import jvre.core.ShaderDiagnostic;
 import jvre.core.Surface;
 import jvre.core.Window;
 
 /**
- * M2 of the shadertoy clone: a live editor. Type GLSL in the left pane; the shader
- * recompiles (debounced) and updates in the right pane. A failed compile keeps the
- * last working shader running and shows the errors -- in the gutter (red line
- * numbers) and a panel along the bottom of the editor.
+ * The shadertoy clone. The window is a top bar, a left editor (with pass tabs:
+ * Common, Image, and -- later -- Buffer A-D), and a right shader pane with playback
+ * controls. Editing recompiles the project (debounced); a failed compile keeps the
+ * last working shader running and surfaces the errors on the right tab.
  *
  * jvre is consumed purely as a published Maven Central library here.
  */
 public final class Main {
 
-    // Shadertoy's default shader, used to seed the editor. (The text block's closing
-    // delimiter is aligned so the content keeps "void" at column 0, body indented 4.)
+    // Shadertoy's default Image shader, used to seed a new project. (The text block's
+    // closing delimiter is aligned so "void" keeps column 0, the body indented 4.)
     private static final String DEFAULT_SHADER = """
         void mainImage( out vec4 fragColor, in vec2 fragCoord )
         {
@@ -58,15 +56,16 @@ public final class Main {
         // A monospace font for the editor (jvre's built-in font is proportional).
         // Baked large so the SDF stays crisp even when scaled up on hi-DPI displays.
         Font mono = renderer.loadFont("/fonts/JetBrainsMono-Regular.ttf", 64f);
-        Editor editor = new Editor(mono, FONT_SIZE, DEFAULT_SHADER.stripTrailing());
+
+        int initSplit = Math.round(g.width() * 0.5f);
+        Project project = new Project(renderer, g.width() - initSplit, g.height(), DEFAULT_SHADER.stripTrailing());
+        Editor editor = new Editor(mono, FONT_SIZE, project.activeDocument());
         TopBar topBar = new TopBar(mono);
+        TabBar tabBar = new TabBar(mono);
+        ChannelStrip channelStrip = new ChannelStrip(mono);
         ShaderControls controls = new ShaderControls(mono);
         Uniforms uniforms = new Uniforms();
 
-        int initSplit = Math.round(g.width() * 0.5f);
-        ShaderPane shaderPane = new ShaderPane(renderer, g.width() - initSplit, g.height(), editor.text());
-
-        List<ShaderDiagnostic> errors = List.of();
         boolean dirty = false;
         float lastEdit = 0f;
 
@@ -82,13 +81,22 @@ public final class Main {
             int shaderW = Math.max(1, w - split);
             // Scale the UI off the render height (not DPI): a small window gets small
             // text, a large window large text -- consistent relative size, and this
-            // already accounts for hi-DPI (more pixels -> bigger). REF is the height
-            // at which the base font sizes render 1:1.
+            // already accounts for hi-DPI (more pixels -> bigger).
             float scale = Math.max(0.5f, h / REFERENCE_HEIGHT);
             int barH = Math.round(topBar.height(scale));
-            int paneH = Math.max(1, h - barH);
+            int tabH = Math.round(tabBar.height(scale));
+            int paneH = Math.max(1, h - barH);                 // shader pane spans below the top bar
             float controlsH = controls.height(scale);
-            editor.setViewport(0, barH, split, paneH, scale);
+
+            // The active pass's channel strip sits at the bottom of the editor (Common
+            // has no channels, so no strip there).
+            Channel[] activeChannels = project.activeChannels();
+            int stripH = activeChannels != null ? Math.round(channelStrip.height(scale)) : 0;
+            int editorH = Math.max(1, h - barH - tabH - stripH);
+
+            // The editor always edits the active tab's document.
+            editor.setDocument(project.activeDocument());
+            editor.setViewport(0, barH + tabH, split, editorH, scale);
 
             // 1) edit -> mark dirty
             if (editor.handleInput(window, in, dt, g)) {
@@ -98,7 +106,7 @@ public final class Main {
             // Advance the Shadertoy clock and sample the mouse over the shader pane
             // (excluding the controls strip at the bottom).
             uniforms.update(in, dt, split, barH, shaderW, paneH, controlsH);
-            // Drag-and-drop a text file to import it as the shader.
+            // Drag-and-drop a text file to import it into the active tab.
             String[] dropped = in.droppedFiles();
             if (dropped.length > 0) {
                 String loaded = readTextFile(dropped[0]);
@@ -110,27 +118,33 @@ public final class Main {
             }
             // 2) recompile once typing settles (keeps the last good shader on error)
             if (dirty && renderer.time() - lastEdit > RECOMPILE_DELAY) {
-                errors = shaderPane.reload(editor.text());
+                project.reloadActive();
                 dirty = false;
             }
 
-            // Map error lines (full-source -> editor line, 0-based) for the gutter.
-            Set<Integer> errorLines = new HashSet<>();
-            for (ShaderDiagnostic d : errors) {
-                int line0 = d.line() - ShaderTemplate.USER_LINE_OFFSET - 1;
-                if (line0 >= 0) errorLines.add(line0);
-            }
+            Set<Integer> errorLines = project.activeErrorLines();
+            List<Project.ErrorMark> marks = project.errorMarks();
 
             // 3) render the shader offscreen, sized to its pane
-            shaderPane.resize(shaderW, paneH);
-            shaderPane.render(uniforms.pack(shaderW, paneH));
+            project.resize(shaderW, paneH);
+            project.render(uniforms.pack(shaderW, paneH));
 
-            // 4) composite: top bar, editor left, shader right, errors + controls
+            // 4) composite: top bar, tab strip + editor (left), shader (right), errors,
+            //    controls.
             g.begin();
             editor.render(g, errorLines);
-            g.image(shaderPane.texture(), split, barH, shaderW, paneH);
+            g.image(project.imageTexture(), split, barH, shaderW, paneH);
             g.fillRect(split - 1, barH, 2, paneH, divider);
-            drawErrorPanel(g, errors, split, h, scale);
+
+            // Channel strip for the active pass, then the error panel just above it.
+            if (activeChannels != null) {
+                channelStrip.draw(g, in, 0, h - stripH, split, scale, activeChannels, project);
+            }
+            drawErrorPanel(g, marks, project.tabs(), split, h - stripH, scale);
+
+            int clickedTab = tabBar.draw(g, in, 0, barH, split, scale, project.tabs(), project.activeIndex());
+            if (clickedTab >= 0) project.setActive(clickedTab);
+
             switch (controls.draw(g, in, split, h, shaderW, scale,
                     uniforms.paused(), uniforms.time(), uniforms.fps())) {
                 case TOGGLE_PAUSE -> uniforms.togglePause();
@@ -139,7 +153,7 @@ public final class Main {
             }
             switch (topBar.draw(g, in, w, scale, editor.zoomPercent())) {
                 case RESET -> {
-                    editor.loadSource(DEFAULT_SHADER.stripTrailing());
+                    project.resetImage(DEFAULT_SHADER.stripTrailing());
                     dirty = true;
                     lastEdit = renderer.time();
                 }
@@ -150,7 +164,7 @@ public final class Main {
             renderer.drawFrame();
         }
 
-        shaderPane.close();
+        project.close();
         mono.close();
         renderer.waitIdle();
         renderer.close();
@@ -160,23 +174,24 @@ public final class Main {
     }
 
     /** A compact error list along the bottom of the editor pane (Shadertoy-style),
-     *  clipped to the editor's width so long messages don't bleed into the shader. */
-    private static void drawErrorPanel(Renderer2D g, List<ShaderDiagnostic> errors, float editorW, float h, float scale) {
-        if (errors.isEmpty()) return;
+     *  clipped to the editor's width. Each entry names its tab and line. */
+    private static void drawErrorPanel(Renderer2D g, List<Project.ErrorMark> marks, List<Pass> tabs,
+                                       float editorW, float bottomY, float scale) {
+        if (marks.isEmpty()) return;
         float fontPx = 14f * scale;
-        int show = Math.min(errors.size(), 4);
+        int show = Math.min(marks.size(), 4);
         float lh = g.lineHeight(fontPx);
         float panelH = lh * show + 12f * scale;
-        float y = h - panelH;
+        float y = bottomY - panelH;
 
         g.pushClip(0, y, editorW, panelH);
         g.fillRect(0, y, editorW, panelH, Color.rgba(40, 12, 14, 235));
         g.fillRect(0, y, 3f * scale, panelH, Color.rgb(240, 92, 92));
         for (int i = 0; i < show; i++) {
-            ShaderDiagnostic d = errors.get(i);
-            int line = d.line() - ShaderTemplate.USER_LINE_OFFSET;   // 1-based editor line
-            String where = line >= 1 ? "line " + line : "shader";
-            g.text(where + ": " + d.message(), 10f * scale, y + 6f * scale + i * lh, fontPx, Color.rgb(250, 180, 180));
+            Project.ErrorMark m = marks.get(i);
+            String tab = tabs.get(m.tabIndex()).name();
+            g.text(tab + " line " + m.line() + ": " + m.message(),
+                    10f * scale, y + 6f * scale + i * lh, fontPx, Color.rgb(250, 180, 180));
         }
         g.popClip();
     }

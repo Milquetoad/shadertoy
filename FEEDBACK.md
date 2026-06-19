@@ -90,3 +90,16 @@ dogfood.
 - `[note]` `frame.uniform(float[])` is the only UBO upload path, so an integer member
   (iFrame) has to be packed as `Float.intBitsToFloat(n)`. Works perfectly, but a
   typed/byte-buffer uniform overload would be a touch more ergonomic. Minor.
+
+### 2026-06-19 -- M4 multipass (jvre 1.2.1)
+
+- `[win]` The whole multipass machinery worked on first run: `HDR_FLOAT32`
+  ping-pong render targets, `createPipeline(spec, target)` to bake a target's format,
+  four `sampler2D` channels bound per draw via `frame.texture(i, tex)`, and several
+  `drawToTarget` passes per frame composing a render graph. A self-feedback Buffer A
+  (trail effect) into the Image pass rendered correctly.
+- `[win]` `textureSize(iChannelN, 0)` in-shader is a clean way to provide
+  `iChannelResolution` without bloating the UBO.
+- `[note]` Plain `createPipeline(spec)` bakes the swapchain format, so rendering into
+  an HDR float target needs the `createPipeline(spec, target)` overload. Worth calling
+  out in the RTT docs (easy to miss as a consumer).
