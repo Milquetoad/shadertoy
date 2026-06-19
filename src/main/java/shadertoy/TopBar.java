@@ -13,7 +13,7 @@ import jvre.core.Renderer2D;
  */
 public final class TopBar {
 
-    public enum Action { NONE, RESET, SAVE, LOAD, EXAMPLE }
+    public enum Action { NONE, RESET, SAVE, LOAD, EXAMPLE, EXPORT }
 
     private static final Color BG          = Color.rgb( 30,  33,  40);
     private static final Color BG_DROP     = Color.rgb( 38,  42,  52);
@@ -59,10 +59,14 @@ public final class TopBar {
         g.text(font, z, x, textY, fontPx, FG);
         x -= pad;
 
-        // Buttons right-to-left: Reset | Load | Save | Examples
+        // Buttons right-to-left: Reset | Export | Load | Save | Examples
         float bwReset = Ui.buttonWidth(g, font, "Reset", fontPx, scale);
         if (Ui.button(g, in, font, "Reset", x - bwReset, by, bwReset, bh, fontPx)) action = Action.RESET;
         x -= bwReset + gap;
+
+        float bwExport = Ui.buttonWidth(g, font, "Export", fontPx, scale);
+        if (Ui.button(g, in, font, "Export", x - bwExport, by, bwExport, bh, fontPx)) action = Action.EXPORT;
+        x -= bwExport + gap;
 
         float bwLoad = Ui.buttonWidth(g, font, "Load", fontPx, scale);
         if (Ui.button(g, in, font, "Load", x - bwLoad, by, bwLoad, bh, fontPx)) action = Action.LOAD;

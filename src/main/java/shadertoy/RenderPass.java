@@ -118,6 +118,11 @@ public final class RenderPass {
         return front.texture();
     }
 
+    /** The render target backing {@link #output()} -- used by {@code readPixels}. */
+    public RenderTarget outputTarget() {
+        return front;
+    }
+
     /** The target just written this frame, before a swap (a buffer rendered earlier
      *  this frame, read by a later buffer in the same frame). */
     public Texture pending() {

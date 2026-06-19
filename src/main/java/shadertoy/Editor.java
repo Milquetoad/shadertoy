@@ -45,6 +45,7 @@ public final class Editor {
     private float zoom = 1f;
 
     private float scrollY;        // pixels scrolled down from the top
+    private float scrollX;        // pixels scrolled right (caret-follow, no wheel)
     private float wheelAccum;     // mouse-wheel notches gathered this frame
     private float blink;          // caret blink phase, in seconds
     private boolean dragging;     // left button held after pressing in the pane
@@ -67,6 +68,7 @@ public final class Editor {
         if (d == doc) return;
         doc = d;
         scrollY = 0f;
+        scrollX = 0f;
         blink = 0f;
         dragging = false;
     }
@@ -185,17 +187,25 @@ public final class Editor {
         wheelAccum = 0f;
 
         float gutterW = g.textWidth(font, Integer.toString(lineCount), fontPx) + 2 * pad;
-        float textX = vx + gutterW + pad;
         float top = vy + pad;
         float viewH = vh - 2 * pad;
+        float viewW = vw - gutterW - 2 * pad;
         visibleLines = Math.max(1, (int) (viewH / lh));
 
-        // Keep the caret in view, then clamp scroll to the document bounds.
+        // Keep the caret in view vertically, then clamp to document bounds.
         int caretLine = doc.lineOfOffset(doc.caret());
         float caretTop = caretLine * lh;
         if (caretTop < scrollY) scrollY = caretTop;
         if (caretTop + lh > scrollY + viewH) scrollY = caretTop + lh - viewH;
         scrollY = Math.max(0f, Math.min(scrollY, Math.max(0f, lineCount * lh - viewH)));
+
+        // Keep the caret in view horizontally (caret-follow; no wheel binding needed).
+        float caretCharX = g.textWidth(font, content.substring(doc.lineStart(caretLine), doc.caret()), fontPx);
+        if (caretCharX < scrollX) scrollX = caretCharX;
+        if (caretCharX > scrollX + viewW) scrollX = caretCharX - viewW + pad;
+        scrollX = Math.max(0f, scrollX);
+
+        float textX = vx + gutterW + pad - scrollX;
 
         g.pushClip(vx, vy, vw, vh);
         g.fillRect(vx, vy, vw, vh, BG);
@@ -263,7 +273,7 @@ public final class Editor {
         float pad = PAD * scale;
         float lh = g.lineHeight(font, fontPx);
         float gutterW = g.textWidth(font, Integer.toString(doc.lineCount()), fontPx) + 2 * pad;
-        float textX = vx + gutterW + pad;
+        float textX = vx + gutterW + pad - scrollX;
         float top = vy + pad;
 
         int line = (int) Math.floor((my - top + scrollY) / lh);

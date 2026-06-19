@@ -214,6 +214,9 @@ public final class Project {
 
     public Texture imageTexture() { return image().gpu.output(); }
 
+    /** The render target for the Image pass output (for frame export via readPixels). */
+    public jvre.core.RenderTarget imageRenderTarget() { return image().gpu.outputTarget(); }
+
     public void close() {
         for (Renderable r : renderables) {
             for (Channel ch : r.channels) releaseTexture(ch);

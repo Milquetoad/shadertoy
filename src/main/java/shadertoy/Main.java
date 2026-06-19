@@ -176,6 +176,7 @@ public final class Main {
                     dirty = true;
                     lastEdit = renderer.time();
                 }
+                case EXPORT -> exportFrame(renderer, project);
                 case SAVE -> saveShader(project.activeDocument().text());
                 case LOAD -> {
                     String loaded = openShader();
@@ -224,6 +225,32 @@ public final class Main {
                     10f * scale, y + 6f * scale + i * lh, fontPx, Color.rgb(250, 180, 180));
         }
         g.popClip();
+    }
+
+    /** Read the current Image pass output and write it as a PNG (native Save dialog). */
+    private static void exportFrame(Renderer renderer, Project project) {
+        java.awt.FileDialog fd = new java.awt.FileDialog((java.awt.Frame) null, "Export Frame", java.awt.FileDialog.SAVE);
+        fd.setFile("frame.png");
+        fd.setVisible(true);
+        if (fd.getFile() == null) return;
+        renderer.waitIdle();
+        jvre.core.RenderTarget rt = project.imageRenderTarget();
+        byte[] raw = renderer.readPixels(rt);
+        int w = rt.width(), h = rt.height();
+        // readPixels returns RGBA bytes; pack into ARGB for BufferedImage.
+        java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                int o = (y * w + x) * 4;
+                int r = raw[o]     & 0xFF;
+                int g = raw[o + 1] & 0xFF;
+                int b = raw[o + 2] & 0xFF;
+                int a = raw[o + 3] & 0xFF;
+                img.setRGB(x, y, (a << 24) | (r << 16) | (g << 8) | b);
+            }
+        }
+        try { javax.imageio.ImageIO.write(img, "PNG", new java.io.File(fd.getDirectory() + fd.getFile())); }
+        catch (Exception ignored) {}
     }
 
     /** Open a native Save dialog and write {@code text} to the chosen path. No-op on cancel. */
