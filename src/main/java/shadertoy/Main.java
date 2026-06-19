@@ -234,6 +234,11 @@ public final class Main {
         fd.setVisible(true);
         if (fd.getFile() == null) return;
         renderer.waitIdle();
+        exportFrameTo(renderer, project, fd.getDirectory() + fd.getFile());
+    }
+
+    /** Read the Image pass output and write it as a PNG to {@code path}. */
+    private static void exportFrameTo(Renderer renderer, Project project, String path) {
         jvre.core.RenderTarget rt = project.imageRenderTarget();
         byte[] raw = renderer.readPixels(rt);
         int w = rt.width(), h = rt.height();
@@ -249,7 +254,7 @@ public final class Main {
                 img.setRGB(x, y, (a << 24) | (r << 16) | (g << 8) | b);
             }
         }
-        try { javax.imageio.ImageIO.write(img, "PNG", new java.io.File(fd.getDirectory() + fd.getFile())); }
+        try { javax.imageio.ImageIO.write(img, "PNG", new java.io.File(path)); }
         catch (Exception ignored) {}
     }
 

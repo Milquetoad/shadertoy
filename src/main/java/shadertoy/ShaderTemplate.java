@@ -52,10 +52,18 @@ public final class ShaderTemplate {
         vec3  iChannelResolution[4];
         float iChannelTime[4];
 
+        // sRGB electro-optical transfer (sRGB -> linear). The display target is an sRGB
+        // format that re-encodes linear->sRGB on store; decoding here cancels that, so
+        // the raw shader value lands in the pixel byte exactly as Shadertoy shows it.
+        vec3 _srgbToLinear(vec3 c) {
+            return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
+        }
+
         // ---- user shader below ----
         """;
 
-    private static final String FRAG_EPILOGUE = """
+    // Common head of main(): channel metadata + the y-flipped fragCoord + mainImage call.
+    private static final String FRAG_MAIN_HEAD = """
 
         // ---- host entry point ----
         void main() {
@@ -70,7 +78,18 @@ public final class ShaderTemplate {
             vec2 fragCoord = vec2(gl_FragCoord.x, iResolution.y - gl_FragCoord.y);
             vec4 color = vec4(0.0, 0.0, 0.0, 1.0);
             mainImage(color, fragCoord);
-            _outColor = vec4(color.rgb, 1.0);   // force opaque; Shadertoy ignores alpha
+        """;
+
+    // Display (Image) pass: force opaque (Shadertoy ignores alpha) and pre-decode so the
+    // sRGB target stores the shader value verbatim.
+    private static final String FRAG_TAIL_DISPLAY = """
+            _outColor = vec4(_srgbToLinear(color.rgb), 1.0);
+        }
+        """;
+
+    // Buffer pass: linear float target, sampled by other passes -- store raw rgba.
+    private static final String FRAG_TAIL_BUFFER = """
+            _outColor = color;
         }
         """;
 
@@ -78,8 +97,10 @@ public final class ShaderTemplate {
      *  diagnostics back to editor line numbers. */
     public static final int USER_LINE_OFFSET = (int) FRAG_PROLOGUE.lines().count();
 
-    /** Build the full fragment shader source for a user mainImage body. */
-    public static String fragment(String userBody) {
-        return FRAG_PROLOGUE + userBody + FRAG_EPILOGUE;
+    /** Build the full fragment shader. {@code toDisplay} = the Image pass (sRGB target,
+     *  opaque, gamma-compensated); otherwise a buffer pass (raw linear output). */
+    public static String fragment(String userBody, boolean toDisplay) {
+        return FRAG_PROLOGUE + userBody + FRAG_MAIN_HEAD
+             + (toDisplay ? FRAG_TAIL_DISPLAY : FRAG_TAIL_BUFFER);
     }
 }

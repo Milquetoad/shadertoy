@@ -31,6 +31,7 @@ public final class RenderPass {
     private final Renderer renderer;
     private final Buffer triangle;      // shared fullscreen-triangle vertex buffer
     private final boolean pingPong;
+    private final boolean toDisplay;     // sRGB display target (Image pass) vs linear float buffer
     private final TargetFormat format;
 
     private Pipeline pipeline;
@@ -43,6 +44,7 @@ public final class RenderPass {
         this.renderer = renderer;
         this.triangle = triangle;
         this.pingPong = pingPong;
+        this.toDisplay = !hdr;
         this.format = hdr ? TargetFormat.HDR_FLOAT32 : TargetFormat.DEFAULT;
         this.width = Math.max(1, w);
         this.height = Math.max(1, h);
@@ -51,7 +53,7 @@ public final class RenderPass {
         if (pingPong) back = renderer.createRenderTarget(width, height, format);
 
         byte[] vs = ShaderCompiler.compileVertex(ShaderTemplate.VERTEX, "pass.vert");
-        byte[] fs = ShaderCompiler.compileFragment(ShaderTemplate.fragment(combinedSource), "pass.frag");
+        byte[] fs = ShaderCompiler.compileFragment(ShaderTemplate.fragment(combinedSource, toDisplay), "pass.frag");
         VertexLayout layout = VertexLayout.builder(2 * Float.BYTES)
                 .attribute(0, AttribFormat.VEC2, 0)
                 .build();
@@ -68,7 +70,7 @@ public final class RenderPass {
     /** Hot-swap a new shader body; last-good-on-error, returns diagnostics. */
     public List<ShaderDiagnostic> reload(String combinedSource) {
         try {
-            pipeline.reloadShaders(ShaderTemplate.VERTEX, ShaderTemplate.fragment(combinedSource));
+            pipeline.reloadShaders(ShaderTemplate.VERTEX, ShaderTemplate.fragment(combinedSource, toDisplay));
             return List.of();
         } catch (ShaderCompileException e) {
             return e.errors();
