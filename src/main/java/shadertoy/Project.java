@@ -9,9 +9,12 @@ import java.util.List;
 import java.util.Set;
 
 import jvre.core.Buffer;
+import jvre.core.Filter;
 import jvre.core.Renderer;
 import jvre.core.ShaderDiagnostic;
 import jvre.core.Texture;
+import jvre.core.TextureOptions;
+import jvre.core.WrapMode;
 
 /**
  * A multipass shader project: the editable passes (Common, Image, Buffer A-D), their
@@ -47,6 +50,7 @@ public final class Project {
 
     private static final int BUFFER_COUNT = 4;
 
+    private final Renderer renderer;
     private final Buffer triangle;        // shared fullscreen triangle
     private final Texture dummy;          // 1x1, bound to unassigned channels
 
@@ -57,6 +61,7 @@ public final class Project {
     private int paneW, paneH; // current pane size; buffers size up to this on use
 
     public Project(Renderer renderer, int paneW, int paneH, String defaultImageSource) {
+        this.renderer = renderer;
         this.triangle = renderer.createVertexBuffer(new float[] { -1f, -1f, 3f, -1f, -1f, 3f });
         this.dummy = renderer.createImage(new byte[] { 0, 0, 0, (byte) 255 }, 1, 1);
         this.paneW = Math.max(1, paneW);
@@ -94,9 +99,71 @@ public final class Project {
         return active == 0 ? null : renderables.get(active - 1).channels;
     }
 
-    /** The texture to preview for a channel's source (its buffer output), or null. */
+    /** The texture to preview for a channel's source (buffer output or image), or null. */
     public Texture previewTexture(Channel ch) {
-        return ch.isBuffer() ? buffer(ch.bufferIndex()).gpu.output() : null;
+        if (ch.isBuffer()) return buffer(ch.bufferIndex()).gpu.output();
+        if (ch.isTexture()) return ch.previewTexture();
+        return null;
+    }
+
+    /** Cycle a channel through none/buffers. Left-click skips TEXTURE channels; use
+     *  {@link #releaseChannel} (right-click) to clear those. */
+    public void cycle(Channel ch) {
+        if (ch.isTexture()) return;
+        ch.cycle(BUFFER_COUNT);
+    }
+
+    /** Release a texture channel back to none (right-click). */
+    public void releaseChannel(Channel ch) {
+        releaseTexture(ch);
+    }
+
+    /** Load an image file and assign it to a channel (drag-drop onto a slot). Returns
+     *  false if the file is not a readable image. */
+    public boolean assignTexture(Channel ch, String path) {
+        Texture shader = loadTexture(path, true);
+        if (shader == null) return false;
+        Texture preview = loadTexture(path, false);
+        releaseTexture(ch);
+        ch.setTexture(shader, preview, fileName(path));
+        return true;
+    }
+
+    private Texture loadTexture(String path, boolean flipY) {
+        try {
+            java.awt.image.BufferedImage img = javax.imageio.ImageIO.read(new java.io.File(path));
+            if (img == null) return null;
+            int w = img.getWidth(), h = img.getHeight();
+            byte[] rgba = new byte[w * h * 4];
+            for (int y = 0; y < h; y++) {
+                int srcY = flipY ? (h - 1 - y) : y;
+                for (int x = 0; x < w; x++) {
+                    int argb = img.getRGB(x, srcY);
+                    int o = (y * w + x) * 4;
+                    rgba[o]     = (byte) (argb >> 16);
+                    rgba[o + 1] = (byte) (argb >> 8);
+                    rgba[o + 2] = (byte) argb;
+                    rgba[o + 3] = (byte) (argb >>> 24);
+                }
+            }
+            return renderer.createImage(rgba, w, h, TextureOptions.builder()
+                    .filter(Filter.LINEAR).wrap(WrapMode.REPEAT).mipmaps(true).build());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private void releaseTexture(Channel ch) {
+        if (ch.isTexture()) {
+            if (ch.texture() != null) ch.texture().close();
+            if (ch.previewTexture() != null) ch.previewTexture().close();
+        }
+        ch.clearToNone();
+    }
+
+    private static String fileName(String path) {
+        int slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+        return slash >= 0 ? path.substring(slash + 1) : path;
     }
 
     /** Reset the Image pass to a default source (Reset button) and switch to it. */
@@ -148,7 +215,10 @@ public final class Project {
     public Texture imageTexture() { return image().gpu.output(); }
 
     public void close() {
-        for (Renderable r : renderables) r.gpu.close();
+        for (Renderable r : renderables) {
+            for (Channel ch : r.channels) releaseTexture(ch);
+            r.gpu.close();
+        }
         triangle.close();
         dummy.close();
     }
@@ -175,6 +245,7 @@ public final class Project {
         Texture[] tex = new Texture[4];
         for (int i = 0; i < 4; i++) {
             Channel ch = chs[i];
+            if (ch.isTexture()) { tex[i] = ch.texture(); continue; }
             if (!ch.isBuffer()) { tex[i] = dummy; continue; }
             int b = ch.bufferIndex();
             // A different buffer already rendered this frame -> its current result;
@@ -188,7 +259,10 @@ public final class Project {
         Channel[] chs = image().channels;
         Texture[] tex = new Texture[4];
         for (int i = 0; i < 4; i++) {
-            tex[i] = chs[i].isBuffer() ? buffer(chs[i].bufferIndex()).gpu.output() : dummy;
+            Channel ch = chs[i];
+            tex[i] = ch.isTexture() ? ch.texture()
+                   : ch.isBuffer()  ? buffer(ch.bufferIndex()).gpu.output()
+                   :                  dummy;
         }
         return tex;
     }

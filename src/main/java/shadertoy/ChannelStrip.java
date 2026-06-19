@@ -58,10 +58,29 @@ public final class ChannelStrip {
             g.text(font, "iCh" + i + "  " + channels[i].label(), sx, sy + thumbH + 2f * scale, fontPx, FG);
 
             if (over && in.mousePressed(MouseButton.LEFT)) {
-                channels[i].cycle(project.bufferCount());
+                project.cycle(channels[i]);
+            }
+            if (over && in.mousePressed(MouseButton.RIGHT)) {
+                project.releaseChannel(channels[i]);
             }
         }
 
         g.popClip();
     }
+
+    /** Which slot (0..3) the point falls in, or -1 -- for routing a file drop to a
+     *  channel. Uses the same column geometry as {@link #draw}. */
+    public int slotAt(float x, float y, float w, float scale, float mx, float my) {
+        float h = height(scale);
+        if (my < y || my >= y + h) return -1;
+        float pad = 8f * scale;
+        float gap = 8f * scale;
+        float slotW = (w - 2 * pad - 3 * gap) / 4f;
+        for (int i = 0; i < 4; i++) {
+            float sx = x + pad + i * (slotW + gap);
+            if (mx >= sx && mx < sx + slotW) return i;
+        }
+        return -1;
+    }
 }
+

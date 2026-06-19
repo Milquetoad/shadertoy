@@ -106,14 +106,23 @@ public final class Main {
             // Advance the Shadertoy clock and sample the mouse over the shader pane
             // (excluding the controls strip at the bottom).
             uniforms.update(in, dt, split, barH, shaderW, paneH, controlsH);
-            // Drag-and-drop a text file to import it into the active tab.
+            // Drag-and-drop: a file dropped on a channel slot becomes that channel's
+            // texture; dropped anywhere else in the editor it's imported as source.
             String[] dropped = in.droppedFiles();
             if (dropped.length > 0) {
-                String loaded = readTextFile(dropped[0]);
-                if (loaded != null) {
-                    editor.loadSource(loaded);
-                    dirty = true;
-                    lastEdit = renderer.time();
+                String path = dropped[0];
+                int slot = activeChannels != null
+                        ? channelStrip.slotAt(0, h - stripH, split, scale, in.mouseX(), in.mouseY())
+                        : -1;
+                if (slot >= 0) {
+                    project.assignTexture(activeChannels[slot], path);
+                } else {
+                    String loaded = readTextFile(path);
+                    if (loaded != null) {
+                        editor.loadSource(loaded);
+                        dirty = true;
+                        lastEdit = renderer.time();
+                    }
                 }
             }
             // 2) recompile once typing settles (keeps the last good shader on error)
