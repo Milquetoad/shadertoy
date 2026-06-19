@@ -56,6 +56,7 @@ public final class Editor {
     private int layoutRev  = -1;
     private int layoutCPR  = 0;   // charsPerRow used for the cached layout
     private float cachedCharW;    // monospace character width at the last layout's fontPx
+    private int lastCaret  = -1;  // caret position last frame, for scroll-follow gating
 
     public Editor(Font font, float baseFontSize, Document initial) {
         this.font = font;
@@ -76,6 +77,7 @@ public final class Editor {
         scrollY = 0f;
         blink = 0f;
         dragging = false;
+        lastCaret = -1;
     }
 
     /** Current zoom as a percentage (for the top bar's readout). */
@@ -203,13 +205,17 @@ public final class Editor {
 
         computeLayout(cpr, charW);
 
-        // Caret visual row (for scroll tracking and drawing).
+        // Caret visual row (for drawing and conditional scroll-follow).
         int caretLine  = doc.lineOfOffset(doc.caret());
         int caretCol   = doc.caret() - doc.lineStart(caretLine);
         int caretVR    = lineVRStart[caretLine] + caretCol / layoutCPR;
         float caretTop = caretVR * lh;
-        if (caretTop < scrollY) scrollY = caretTop;
-        if (caretTop + lh > scrollY + viewH) scrollY = caretTop + lh - viewH;
+        // Only pull the caret into view when it moves; free scrolling otherwise.
+        if (doc.caret() != lastCaret) {
+            lastCaret = doc.caret();
+            if (caretTop < scrollY) scrollY = caretTop;
+            if (caretTop + lh > scrollY + viewH) scrollY = caretTop + lh - viewH;
+        }
         scrollY = Math.max(0f, Math.min(scrollY, Math.max(0f, totalVR * lh - viewH)));
 
         g.pushClip(vx, vy, vw, vh);
