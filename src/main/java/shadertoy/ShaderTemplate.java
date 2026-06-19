@@ -70,7 +70,7 @@ public final class ShaderTemplate {
             vec2 fragCoord = vec2(gl_FragCoord.x, iResolution.y - gl_FragCoord.y);
             vec4 color = vec4(0.0, 0.0, 0.0, 1.0);
             mainImage(color, fragCoord);
-            _outColor = color;
+            _outColor = vec4(color.rgb, 1.0);   // force opaque; Shadertoy ignores alpha
         }
         """;
 

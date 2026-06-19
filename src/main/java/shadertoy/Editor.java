@@ -45,11 +45,17 @@ public final class Editor {
     private float zoom = 1f;
 
     private float scrollY;        // pixels scrolled down from the top
-    private float scrollX;        // pixels scrolled right (caret-follow, no wheel)
     private float wheelAccum;     // mouse-wheel notches gathered this frame
     private float blink;          // caret blink phase, in seconds
     private boolean dragging;     // left button held after pressing in the pane
     private int visibleLines = 1; // computed during render, used by PageUp/Down
+
+    // Soft-wrap layout cache (recomputed when revision or charsPerRow changes).
+    private int[] lineVRStart;    // visual row where logical line L begins
+    private int totalVR;          // total visual rows
+    private int layoutRev  = -1;
+    private int layoutCPR  = 0;   // charsPerRow used for the cached layout
+    private float cachedCharW;    // monospace character width at the last layout's fontPx
 
     public Editor(Font font, float baseFontSize, Document initial) {
         this.font = font;
@@ -68,7 +74,6 @@ public final class Editor {
         if (d == doc) return;
         doc = d;
         scrollY = 0f;
-        scrollX = 0f;
         blink = 0f;
         dragging = false;
     }
@@ -186,111 +191,141 @@ public final class Editor {
         scrollY -= wheelAccum * lh * 3f;
         wheelAccum = 0f;
 
-        float gutterW = g.textWidth(font, Integer.toString(lineCount), fontPx) + 2 * pad;
-        float top = vy + pad;
-        float viewH = vh - 2 * pad;
-        float viewW = vw - gutterW - 2 * pad;
+        float gutterW   = g.textWidth(font, Integer.toString(lineCount), fontPx) + 2 * pad;
+        float textX     = vx + gutterW + pad;
+        float top       = vy + pad;
+        float viewH     = vh - 2 * pad;
+        float textAreaW = vw - gutterW - 2 * pad;
+        // JetBrains Mono is monospace: all glyphs have the same advance width.
+        float charW     = g.textWidth(font, "M", fontPx);
+        int   cpr       = Math.max(1, (int) (textAreaW / charW));  // chars per visual row
         visibleLines = Math.max(1, (int) (viewH / lh));
 
-        // Keep the caret in view vertically, then clamp to document bounds.
-        int caretLine = doc.lineOfOffset(doc.caret());
-        float caretTop = caretLine * lh;
+        computeLayout(cpr, charW);
+
+        // Caret visual row (for scroll tracking and drawing).
+        int caretLine  = doc.lineOfOffset(doc.caret());
+        int caretCol   = doc.caret() - doc.lineStart(caretLine);
+        int caretVR    = lineVRStart[caretLine] + caretCol / layoutCPR;
+        float caretTop = caretVR * lh;
         if (caretTop < scrollY) scrollY = caretTop;
         if (caretTop + lh > scrollY + viewH) scrollY = caretTop + lh - viewH;
-        scrollY = Math.max(0f, Math.min(scrollY, Math.max(0f, lineCount * lh - viewH)));
-
-        // Keep the caret in view horizontally (caret-follow; no wheel binding needed).
-        float caretCharX = g.textWidth(font, content.substring(doc.lineStart(caretLine), doc.caret()), fontPx);
-        if (caretCharX < scrollX) scrollX = caretCharX;
-        if (caretCharX > scrollX + viewW) scrollX = caretCharX - viewW + pad;
-        scrollX = Math.max(0f, scrollX);
-
-        float textX = vx + gutterW + pad - scrollX;
+        scrollY = Math.max(0f, Math.min(scrollY, Math.max(0f, totalVR * lh - viewH)));
 
         g.pushClip(vx, vy, vw, vh);
         g.fillRect(vx, vy, vw, vh, BG);
         g.fillRect(vx, vy, gutterW, vh, GUTTER_BG);
 
-        int first = Math.max(0, (int) (scrollY / lh));
-        int last = Math.min(lineCount - 1, first + visibleLines + 1);
+        int firstVR = Math.max(0, (int) (scrollY / lh));
+        int lastVR  = Math.min(totalVR - 1, firstVR + visibleLines + 1);
         int selS = doc.selStart(), selE = doc.selEnd();
         boolean hasSel = doc.hasSelection();
 
-        for (int line = first; line <= last; line++) {
-            float lineY = top + line * lh - scrollY;
-            int ls = doc.lineStart(line), le = doc.lineEnd(line);
+        for (int vr = firstVR; vr <= lastVR; vr++) {
+            int line   = lineForVR(vr);
+            int chunk  = vr - lineVRStart[line];
+            int ls     = doc.lineStart(line), le = doc.lineEnd(line);
+            int vrS    = ls + chunk * layoutCPR;          // doc offset of first char in this row
+            int vrE    = Math.min(le, vrS + layoutCPR);   // doc offset past last char
+            float lineY = top + vr * lh - scrollY;
 
             if (hasSel) {
-                int a = Math.max(selS, ls), b = Math.min(selE, le);
+                int a = Math.max(selS, vrS), b = Math.min(selE, vrE);
                 if (b > a) {
-                    float ax = textX + g.textWidth(font, content.substring(ls, a), fontPx);
-                    float bx = textX + g.textWidth(font, content.substring(ls, b), fontPx);
-                    g.fillRect(ax, lineY, Math.max(2f, bx - ax), lh, SELECTION);
+                    g.fillRect(textX + (a - vrS) * charW, lineY,
+                               Math.max(2f, (b - a) * charW), lh, SELECTION);
                 }
-                // If the newline ending this line is selected, draw a trailing nub.
-                if (le < content.length() && selS <= le && selE > le) {
-                    float ex = textX + g.textWidth(font, content.substring(ls, le), fontPx);
-                    g.fillRect(ex, lineY, fontPx * 0.4f, lh, SELECTION);
+                // Trailing nub for the newline at the end of this logical line.
+                if (vrE == le && le < content.length() && selS <= le && selE > le) {
+                    g.fillRect(textX + (le - vrS) * charW, lineY, fontPx * 0.4f, lh, SELECTION);
                 }
             }
 
-            String num = Integer.toString(line + 1);
-            Color numColor = errorLines.contains(line) ? ERROR_FG : GUTTER_FG;
-            g.text(font, num, vx + gutterW - pad - g.textWidth(font, num, fontPx), lineY, fontPx, numColor);
+            // Line number only on the first visual row of each logical line.
+            if (chunk == 0) {
+                String num = Integer.toString(line + 1);
+                Color numColor = errorLines.contains(line) ? ERROR_FG : GUTTER_FG;
+                g.text(font, num, vx + gutterW - pad - g.textWidth(font, num, fontPx),
+                       lineY, fontPx, numColor);
+            }
 
-            // Draw line text as colored runs (syntax highlighting).
+            // Syntax-highlighted text as colored runs.
             float rx = textX;
-            int ci = ls;
-            while (ci < le) {
+            int ci = vrS;
+            while (ci < vrE) {
                 Color hc = hl[ci];
                 int cj = ci + 1;
-                while (cj < le && hl[cj] == hc) cj++;
-                String seg = content.substring(ci, cj);
-                g.text(font, seg, rx, lineY, fontPx, hc);
-                rx += g.textWidth(font, seg, fontPx);
+                while (cj < vrE && hl[cj] == hc) cj++;
+                g.text(font, content.substring(ci, cj), rx, lineY, fontPx, hc);
+                rx += (cj - ci) * charW;   // monospace: multiply instead of measuring
                 ci = cj;
             }
         }
 
-        // Blinking caret: on for half a second, off for half a second.
+        // Blinking caret.
         if ((int) (blink * 2f) % 2 == 0) {
-            int cl = doc.lineOfOffset(doc.caret());
-            int cls = doc.lineStart(cl);
-            float cx = textX + g.textWidth(font, content.substring(cls, doc.caret()), fontPx);
-            float cy = top + cl * lh - scrollY;
+            float cx = textX + (caretCol % layoutCPR) * charW;
+            float cy = top + caretVR * lh - scrollY;
             g.fillRect(cx, cy, Math.max(1.5f, scale * 1.5f), lh, CARET);
         }
 
         g.popClip();
     }
 
+    /** Recompute the visual-row layout if the document or column count changed. */
+    private void computeLayout(int cpr, float charW) {
+        int rev = doc.revision();
+        if (cpr == layoutCPR && rev == layoutRev && lineVRStart != null) return;
+        int n = doc.lineCount();
+        lineVRStart = new int[n];
+        int vr = 0;
+        for (int i = 0; i < n; i++) {
+            lineVRStart[i] = vr;
+            int len = doc.lineEnd(i) - doc.lineStart(i);
+            vr += Math.max(1, (int) Math.ceil((double) len / cpr));
+        }
+        totalVR    = vr;
+        layoutRev  = rev;
+        layoutCPR  = cpr;
+        cachedCharW = charW;
+    }
+
+    /** Binary search: which logical line contains visual row {@code vr}. */
+    private int lineForVR(int vr) {
+        int lo = 0, hi = lineVRStart.length - 1;
+        while (lo < hi) {
+            int mid = (lo + hi + 1) >>> 1;
+            if (lineVRStart[mid] <= vr) lo = mid; else hi = mid - 1;
+        }
+        return lo;
+    }
+
     // ---- helpers ---------------------------------------------------------------
 
     /** The document offset under a pixel position, for mouse caret placement. */
     private int offsetAt(Renderer2D g, float mx, float my) {
-        float scale = uiScale();
-        float fontPx = baseFontSize * scale;
-        float pad = PAD * scale;
-        float lh = g.lineHeight(font, fontPx);
+        float scale   = uiScale();
+        float fontPx  = baseFontSize * scale;
+        float pad     = PAD * scale;
+        float lh      = g.lineHeight(font, fontPx);
         float gutterW = g.textWidth(font, Integer.toString(doc.lineCount()), fontPx) + 2 * pad;
-        float textX = vx + gutterW + pad - scrollX;
-        float top = vy + pad;
+        float textX   = vx + gutterW + pad;
+        float top     = vy + pad;
+        float cw      = cachedCharW > 0 ? cachedCharW : g.textWidth(font, "M", fontPx);
+        int   cpr     = layoutCPR   > 0 ? layoutCPR   : 1;
 
-        int line = (int) Math.floor((my - top + scrollY) / lh);
-        line = Math.max(0, Math.min(line, doc.lineCount() - 1));
-        int ls = doc.lineStart(line), le = doc.lineEnd(line);
-        String lineStr = doc.text().substring(ls, le);
+        if (lineVRStart == null || totalVR == 0) return 0;
+        int vr   = Math.max(0, Math.min(totalVR - 1, (int) ((my - top + scrollY) / lh)));
+        int line = lineForVR(vr);
+        int chunk = vr - lineVRStart[line];
+        int ls    = doc.lineStart(line), le = doc.lineEnd(line);
+        int vrS   = ls + chunk * cpr;
+        int vrE   = Math.min(le, vrS + cpr);
 
         float target = mx - textX;
-        if (target <= 0f) return ls;
-        int col = lineStr.length();
-        float prevW = 0f;
-        for (int i = 1; i <= lineStr.length(); i++) {
-            float w = g.textWidth(font, lineStr.substring(0, i), fontPx);
-            if (target < (prevW + w) * 0.5f) { col = i - 1; break; }
-            prevW = w;
-        }
-        return ls + col;
+        if (target <= 0f) return vrS;
+        int col = Math.min(vrE - vrS, Math.max(0, (int) Math.round(target / cw)));
+        return vrS + col;
     }
 
     /** The leading whitespace of the caret's current line -- copied on Enter so a new
