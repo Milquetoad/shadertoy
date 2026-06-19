@@ -28,7 +28,6 @@ public final class Editor {
     private static final Color BG        = Color.rgb(24, 26, 31);
     private static final Color GUTTER_BG  = Color.rgb(20, 22, 26);
     private static final Color GUTTER_FG  = Color.rgb(92, 98, 112);
-    private static final Color FG         = Color.rgb(213, 218, 228);
     private static final Color CARET      = Color.rgb(232, 235, 242);
     private static final Color SELECTION  = Color.rgba(72, 104, 176, 95);
     private static final Color ERROR_FG   = Color.rgb(240, 92, 92);
@@ -37,6 +36,7 @@ public final class Editor {
     private final Font font;
     private final float baseFontSize;
     private final KeyRepeat repeat = new KeyRepeat();
+    private final GlslHighlighter highlighter = new GlslHighlighter();
 
     // Viewport (pane rect) and scale. dpiScale is set by the host each frame; zoom is
     // the user's Ctrl+wheel adjustment. The effective UI scale is their product.
@@ -178,6 +178,7 @@ public final class Editor {
         float lh = g.lineHeight(font, fontPx);
         String content = doc.text();
         int lineCount = doc.lineCount();
+        Color[] hl = highlighter.update(content, doc.revision());
 
         // Apply mouse-wheel scroll now that we know the line height.
         scrollY -= wheelAccum * lh * 3f;
@@ -226,7 +227,19 @@ public final class Editor {
             String num = Integer.toString(line + 1);
             Color numColor = errorLines.contains(line) ? ERROR_FG : GUTTER_FG;
             g.text(font, num, vx + gutterW - pad - g.textWidth(font, num, fontPx), lineY, fontPx, numColor);
-            g.text(font, content.substring(ls, le), textX, lineY, fontPx, FG);
+
+            // Draw line text as colored runs (syntax highlighting).
+            float rx = textX;
+            int ci = ls;
+            while (ci < le) {
+                Color hc = hl[ci];
+                int cj = ci + 1;
+                while (cj < le && hl[cj] == hc) cj++;
+                String seg = content.substring(ci, cj);
+                g.text(font, seg, rx, lineY, fontPx, hc);
+                rx += g.textWidth(font, seg, fontPx);
+                ci = cj;
+            }
         }
 
         // Blinking caret: on for half a second, off for half a second.

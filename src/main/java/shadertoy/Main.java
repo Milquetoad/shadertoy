@@ -7,6 +7,7 @@ import jvre.core.Color;
 import jvre.core.Font;
 import jvre.core.Input;
 import jvre.core.Instance;
+import jvre.core.MouseButton;
 import jvre.core.Renderer;
 import jvre.core.Renderer2D;
 import jvre.core.RendererOptions;
@@ -68,6 +69,8 @@ public final class Main {
 
         boolean dirty = false;
         float lastEdit = 0f;
+        float splitFrac = 0.5f;
+        boolean draggingSplit = false;
 
         final Color divider = Color.rgb(44, 47, 54);
 
@@ -77,8 +80,6 @@ public final class Main {
             float dt = renderer.dt();
 
             int w = g.width(), h = g.height();
-            int split = Math.round(w * 0.5f);
-            int shaderW = Math.max(1, w - split);
             // Scale the UI off the render height (not DPI): a small window gets small
             // text, a large window large text -- consistent relative size, and this
             // already accounts for hi-DPI (more pixels -> bigger).
@@ -87,6 +88,15 @@ public final class Main {
             int tabH = Math.round(tabBar.height(scale));
             int paneH = Math.max(1, h - barH);                 // shader pane spans below the top bar
             float controlsH = controls.height(scale);
+
+            // Splitter drag: grab the 8px zone around the divider line.
+            int split = Math.round(w * splitFrac);
+            boolean overDivider = Math.abs(in.mouseX() - split) <= 4 && in.mouseY() >= barH;
+            if (in.mousePressed(MouseButton.LEFT) && overDivider) draggingSplit = true;
+            if (!in.mouseDown(MouseButton.LEFT)) draggingSplit = false;
+            if (draggingSplit) splitFrac = Math.clamp((float) in.mouseX() / w, 0.2f, 0.8f);
+            split = Math.round(w * splitFrac);
+            int shaderW = Math.max(1, w - split);
 
             // The active pass's channel strip sits at the bottom of the editor (Common
             // has no channels, so no strip there).
@@ -98,8 +108,8 @@ public final class Main {
             editor.setDocument(project.activeDocument());
             editor.setViewport(0, barH + tabH, split, editorH, scale);
 
-            // 1) edit -> mark dirty
-            if (editor.handleInput(window, in, dt, g)) {
+            // 1) edit -> mark dirty (suppress while the splitter is being dragged)
+            if (!draggingSplit && editor.handleInput(window, in, dt, g)) {
                 dirty = true;
                 lastEdit = renderer.time();
             }
