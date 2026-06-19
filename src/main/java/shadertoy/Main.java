@@ -73,6 +73,7 @@ public final class Main {
         boolean draggingSplit = false;
 
         final Color divider = Color.rgb(44, 47, 54);
+        final Color dividerHot = Color.rgb(90, 130, 200);
 
         while (!window.shouldClose()) {
             window.pollEvents();
@@ -96,7 +97,18 @@ public final class Main {
             if (!in.mouseDown(MouseButton.LEFT)) draggingSplit = false;
             if (draggingSplit) splitFrac = Math.clamp((float) in.mouseX() / w, 0.2f, 0.8f);
             split = Math.round(w * splitFrac);
-            int shaderW = Math.max(1, w - split);
+            int paneW = Math.max(1, w - split);
+
+            // Letterbox the shader to Shadertoy's 16:9 canvas inside the right pane, so a
+            // shader is framed identically regardless of how the editor split is sized.
+            int shaderW, shaderH, shaderX, shaderY;
+            if ((float) paneW / paneH > 16f / 9f) {
+                shaderH = paneH;  shaderW = Math.round(shaderH * 16f / 9f);
+            } else {
+                shaderW = paneW;  shaderH = Math.round(shaderW * 9f / 16f);
+            }
+            shaderX = split + (paneW - shaderW) / 2;
+            shaderY = barH + (paneH - shaderH) / 2;
 
             // The active pass's channel strip sits at the bottom of the editor (Common
             // has no channels, so no strip there).
@@ -115,7 +127,7 @@ public final class Main {
             }
             // Advance the Shadertoy clock and sample the mouse over the shader pane
             // (excluding the controls strip at the bottom).
-            uniforms.update(in, dt, split, barH, shaderW, paneH, controlsH);
+            uniforms.update(in, dt, shaderX, shaderY, shaderW, shaderH, controlsH);
             // Drag-and-drop: a file dropped on a channel slot becomes that channel's
             // texture; dropped anywhere else in the editor it's imported as source.
             String[] dropped = in.droppedFiles();
@@ -144,16 +156,26 @@ public final class Main {
             Set<Integer> errorLines = project.activeErrorLines();
             List<Project.ErrorMark> marks = project.errorMarks();
 
-            // 3) render the shader offscreen, sized to its pane
-            project.resize(shaderW, paneH);
-            project.render(uniforms.pack(shaderW, paneH));
+            // 3) render the shader offscreen, sized to its (letterboxed) canvas
+            project.resize(shaderW, shaderH);
+            project.render(uniforms.pack(shaderW, shaderH));
 
             // 4) composite: top bar, tab strip + editor (left), shader (right), errors,
             //    controls.
             g.begin();
             editor.render(g, errorLines);
-            g.image(project.imageTexture(), split, barH, shaderW, paneH);
-            g.fillRect(split - 1, barH, 2, paneH, divider);
+            g.fillRect(split, barH, paneW, paneH, divider);   // letterbox margins
+            g.image(project.imageTexture(), shaderX, shaderY, shaderW, shaderH);
+
+            // Draggable splitter: a 2px line with a grip of dots, brightened on hover/drag.
+            boolean splitHot = draggingSplit || overDivider;
+            g.fillRect(split - 1, barH, 2, paneH, splitHot ? dividerHot : divider);
+            float dotR = 2f * scale, gap = 6f * scale;
+            float cy = barH + (h - barH) * 0.5f;
+            for (int d = -1; d <= 1; d++) {
+                g.fillRect(split - dotR, cy + d * gap - dotR, 2 * dotR, 2 * dotR,
+                        splitHot ? Color.rgb(180, 188, 205) : Color.rgb(96, 102, 116));
+            }
 
             // Channel strip for the active pass, then the error panel just above it.
             if (activeChannels != null) {
@@ -164,7 +186,7 @@ public final class Main {
             int clickedTab = tabBar.draw(g, in, 0, barH, split, scale, project.tabs(), project.activeIndex());
             if (clickedTab >= 0) project.setActive(clickedTab);
 
-            switch (controls.draw(g, in, split, h, shaderW, scale,
+            switch (controls.draw(g, in, shaderX, shaderY + shaderH, shaderW, scale,
                     uniforms.paused(), uniforms.time(), uniforms.fps())) {
                 case TOGGLE_PAUSE -> uniforms.togglePause();
                 case RESTART -> uniforms.restart();
