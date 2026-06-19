@@ -26,6 +26,12 @@ dependencies {
     // exact LWJGL version jvre was built against -- no version pinned per line.
     implementation platform('org.lwjgl:lwjgl-bom:3.3.4')
 
+    // We compile our own SPIR-V at optimization level zero instead of jvre's
+    // ShaderCompiler (which hardcodes shaderc's performance optimization and mangles
+    // precision-sensitive procedural-noise hashes). Needs the shaderc API jar on the
+    // compile classpath; version comes from the BOM.
+    implementation 'org.lwjgl:lwjgl-shaderc'
+
     // Native binaries for every LWJGL module jvre loads at runtime. Versions come
     // from the BOM above; the empty version slot (::) means "let the BOM decide".
     // (lwjgl-vulkan has no natives -- Vulkan comes from the GPU driver.)
