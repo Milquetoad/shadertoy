@@ -43,6 +43,7 @@ public final class Main {
     private static final float FONT_SIZE = 18f;
     private static final float RECOMPILE_DELAY = 0.25f;   // seconds of quiet before recompiling
     private static final float REFERENCE_HEIGHT = 900f;   // render height at which UI is 1:1
+    private static final int SUPERSAMPLE = 2;             // shader renders at SSx, downsampled on display
 
     public static void main(String[] args) {
         Window window = new Window(1280, 720, "Shadertoy (jvre dogfood)");
@@ -127,7 +128,7 @@ public final class Main {
             }
             // Advance the Shadertoy clock and sample the mouse over the shader pane
             // (excluding the controls strip at the bottom).
-            uniforms.update(in, dt, shaderX, shaderY, shaderW, shaderH, controlsH);
+            uniforms.update(in, dt, shaderX, shaderY, shaderW, shaderH, controlsH, SUPERSAMPLE);
             // Drag-and-drop: a file dropped on a channel slot becomes that channel's
             // texture; dropped anywhere else in the editor it's imported as source.
             String[] dropped = in.droppedFiles();
@@ -156,9 +157,11 @@ public final class Main {
             Set<Integer> errorLines = project.activeErrorLines();
             List<Project.ErrorMark> marks = project.errorMarks();
 
-            // 3) render the shader offscreen, sized to its (letterboxed) canvas
-            project.resize(shaderW, shaderH);
-            project.render(uniforms.pack(shaderW, shaderH));
+            // 3) render the shader offscreen at SUPERSAMPLE x the (letterboxed) canvas;
+            //    the display pass downsamples it, giving cheap edge antialiasing.
+            int rw = shaderW * SUPERSAMPLE, rh = shaderH * SUPERSAMPLE;
+            project.resize(rw, rh);
+            project.render(uniforms.pack(rw, rh));
 
             // 4) composite: top bar, tab strip + editor (left), shader (right), errors,
             //    controls.

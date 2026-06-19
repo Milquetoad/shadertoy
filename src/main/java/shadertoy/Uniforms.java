@@ -35,7 +35,7 @@ public final class Uniforms {
      *  {@code (paneX, paneY, paneW, paneH)} in window pixels; {@code reservedBottom}
      *  excludes an overlay strip (the controls) from registering mouse clicks. */
     public void update(Input in, float dt, float paneX, float paneY, float paneW, float paneH,
-                       float reservedBottom) {
+                       float reservedBottom, float renderScale) {
         lastDt = dt;
         if (!paused) { time += dt; frame++; }
 
@@ -43,8 +43,10 @@ public final class Uniforms {
         float localYTop = in.mouseY() - paneY;
         boolean over = localX >= 0 && localX < paneW
                     && localYTop >= 0 && localYTop < paneH - reservedBottom;
-        float x = clamp(localX, 0, paneW);
-        float y = clamp(paneH - localYTop, 0, paneH);   // flip to bottom-left origin
+        // Pane is shown at 1x but the shader renders at renderScale x; report the mouse in
+        // shader (iResolution) pixels so iMouse matches fragCoord.
+        float x = clamp(localX, 0, paneW) * renderScale;
+        float y = clamp(paneH - localYTop, 0, paneH) * renderScale;   // flip to bottom-left origin
 
         justPressed = false;
         if (in.mousePressed(MouseButton.LEFT) && over) {

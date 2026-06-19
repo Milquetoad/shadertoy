@@ -4,6 +4,7 @@ import java.util.List;
 
 import jvre.core.AttribFormat;
 import jvre.core.Buffer;
+import jvre.core.Filter;
 import jvre.core.Pipeline;
 import jvre.core.PipelineSpec;
 import jvre.core.RenderTarget;
@@ -49,8 +50,10 @@ public final class RenderPass {
         this.width = Math.max(1, w);
         this.height = Math.max(1, h);
 
-        front = renderer.createRenderTarget(width, height, format);
-        if (pingPong) back = renderer.createRenderTarget(width, height, format);
+        // LINEAR sampling so the supersampled output downsamples smoothly on display
+        // (and buffer reads filter cleanly).
+        front = renderer.createRenderTarget(width, height, format, Filter.LINEAR);
+        if (pingPong) back = renderer.createRenderTarget(width, height, format, Filter.LINEAR);
 
         byte[] vs = ShaderCompiler.compileVertex(ShaderTemplate.VERTEX, "pass.vert");
         byte[] fs = ShaderCompiler.compileFragment(ShaderTemplate.fragment(combinedSource, toDisplay), "pass.frag");
@@ -83,10 +86,10 @@ public final class RenderPass {
         if (w == width && h == height) return;
         renderer.waitIdle();
         front.close();
-        front = renderer.createRenderTarget(w, h, format);
+        front = renderer.createRenderTarget(w, h, format, Filter.LINEAR);
         if (pingPong) {
             back.close();
-            back = renderer.createRenderTarget(w, h, format);
+            back = renderer.createRenderTarget(w, h, format, Filter.LINEAR);
         }
         width = w;
         height = h;
