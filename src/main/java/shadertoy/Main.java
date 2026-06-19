@@ -108,8 +108,8 @@ public final class Main {
             editor.setDocument(project.activeDocument());
             editor.setViewport(0, barH + tabH, split, editorH, scale);
 
-            // 1) edit -> mark dirty (suppress while the splitter is being dragged)
-            if (!draggingSplit && editor.handleInput(window, in, dt, g)) {
+            // 1) edit -> mark dirty (suppress while the splitter or Examples dropdown is active)
+            if (!draggingSplit && !topBar.isDropdownOpen() && editor.handleInput(window, in, dt, g)) {
                 dirty = true;
                 lastEdit = renderer.time();
             }
@@ -176,6 +176,17 @@ public final class Main {
                     dirty = true;
                     lastEdit = renderer.time();
                 }
+                case SAVE -> saveShader(project.activeDocument().text());
+                case LOAD -> {
+                    String loaded = openShader();
+                    if (loaded != null) { editor.loadSource(loaded); dirty = true; lastEdit = renderer.time(); }
+                }
+                case EXAMPLE -> {
+                    project.setActive(1);   // always load examples into the Image tab
+                    editor.loadSource(Examples.SHADERS[topBar.selectedExample()].source());
+                    dirty = true;
+                    lastEdit = renderer.time();
+                }
                 case NONE -> { }
             }
             g.end();
@@ -213,6 +224,25 @@ public final class Main {
                     10f * scale, y + 6f * scale + i * lh, fontPx, Color.rgb(250, 180, 180));
         }
         g.popClip();
+    }
+
+    /** Open a native Save dialog and write {@code text} to the chosen path. No-op on cancel. */
+    private static void saveShader(String text) {
+        java.awt.FileDialog fd = new java.awt.FileDialog((java.awt.Frame) null, "Save Shader", java.awt.FileDialog.SAVE);
+        fd.setFile("shader.glsl");
+        fd.setVisible(true);
+        if (fd.getFile() == null) return;
+        try { java.nio.file.Files.writeString(java.nio.file.Path.of(fd.getDirectory() + fd.getFile()), text); }
+        catch (Exception ignored) {}
+    }
+
+    /** Open a native Load dialog and return the file's text, or null on cancel/error. */
+    private static String openShader() {
+        java.awt.FileDialog fd = new java.awt.FileDialog((java.awt.Frame) null, "Open Shader", java.awt.FileDialog.LOAD);
+        fd.setFile("*.glsl;*.frag;*.fs");
+        fd.setVisible(true);
+        if (fd.getFile() == null) return null;
+        return readTextFile(fd.getDirectory() + fd.getFile());
     }
 
     /** Read a dropped file as text, normalising newlines. Returns null if it can't be
