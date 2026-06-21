@@ -1,4 +1,4 @@
-# Publishing Shadertoy
+# Publishing JVRE-shadertoy
 
 The Gradle build produces a self-contained Windows app (bundled JRE + LWJGL
 natives — users don't need Java installed). From there you publish a GitHub
@@ -14,8 +14,8 @@ Release, then optionally winget and/or Scoop.
 ## 1. Build the artifacts (I've wired these tasks up)
 
 ```sh
-./gradlew packageZip      # build/distributions/JVRE-Shadertoy-<ver>-windows-x64.zip   (portable, for Scoop / winget-portable)
-./gradlew jpackageMsi     # build/jpackage/JVRE Shadertoy-<ver>.msi                     (installer, for winget — needs WiX, see below)
+./gradlew packageZip      # build/distributions/JVRE-shadertoy-<ver>-windows-x64.zip   (portable, for Scoop / winget-portable)
+./gradlew jpackageMsi     # build/jpackage/JVRE-shadertoy-<ver>.msi                     (installer, for winget — needs WiX, see below)
 ```
 
 - `packageZip` needs nothing extra and is the recommended starting point.
@@ -29,9 +29,9 @@ Release, then optionally winget and/or Scoop.
 # tag and create the release with the built artifacts attached
 git tag v1.0.0 && git push origin v1.0.0
 gh release create v1.0.0 \
-  build/distributions/JVRE-Shadertoy-1.0.0-windows-x64.zip \
-  "build/jpackage/JVRE Shadertoy-1.0.0.msi" \
-  --title "JVRE Shadertoy 1.0.0" --notes "First release."
+  build/distributions/JVRE-shadertoy-1.0.0-windows-x64.zip \
+  build/jpackage/JVRE-shadertoy-1.0.0.msi \
+  --title "JVRE-shadertoy 1.0.0" --notes "First release."
 ```
 
 (Drop the `.msi` line if you didn't build it.) The release asset URLs are what
@@ -43,9 +43,7 @@ Easiest via `wingetcreate` — it autodetects the installer and opens the PR for
 
 ```sh
 winget install Microsoft.WingetCreate
-# the MSI asset name has a space; GitHub serves it with %20 in the URL — copy the exact
-# download URL from the release page (or use the portable zip URL instead, see note below).
-wingetcreate new "https://github.com/Milquetoad/shadertoy/releases/download/v1.0.0/JVRE%20Shadertoy-1.0.0.msi"
+wingetcreate new https://github.com/Milquetoad/shadertoy/releases/download/v1.0.0/JVRE-shadertoy-1.0.0.msi
 # answer the prompts (PackageIdentifier e.g. Milquetoad.JVREShadertoy, publisher, license, etc.)
 wingetcreate submit --token <your-github-PAT>
 ```
@@ -55,7 +53,7 @@ moderator reviews (usually a day or two). Notes:
 - **PackageIdentifier** must be `Publisher.Package`, e.g. `Milquetoad.JVREShadertoy`.
 - An **MSI** is the smoothest installer type. To submit the **zip as a portable**
   instead, run `wingetcreate new <zip-url>` and choose installer type `portable`
-  with `JVRE Shadertoy\JVRE Shadertoy.exe` as the portable command.
+  with `JVRE-shadertoy\JVRE-shadertoy.exe` as the portable command.
 - Future versions: `wingetcreate update Milquetoad.JVREShadertoy --version <new> --urls <new-url>`.
 
 ## 3b. Scoop (lighter, no central review)
@@ -65,7 +63,7 @@ For each release, fill in the two `REPLACE-...` fields:
 
 ```sh
 # sha256 of the zip:
-sha256sum build/distributions/JVRE-Shadertoy-1.0.0-windows-x64.zip
+sha256sum build/distributions/JVRE-shadertoy-1.0.0-windows-x64.zip
 ```
 
 Put the hash in `architecture.64bit.hash` and your SPDX id in `license`. Then host

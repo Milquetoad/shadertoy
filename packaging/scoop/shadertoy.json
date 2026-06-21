@@ -5,19 +5,19 @@
     "license": "REPLACE-WITH-SPDX-ID",
     "architecture": {
         "64bit": {
-            "url": "https://github.com/Milquetoad/shadertoy/releases/download/v1.0.0/JVRE-Shadertoy-1.0.0-windows-x64.zip",
+            "url": "https://github.com/Milquetoad/shadertoy/releases/download/v1.0.0/JVRE-shadertoy-1.0.0-windows-x64.zip",
             "hash": "REPLACE-WITH-SHA256-OF-THE-ZIP"
         }
     },
-    "bin": "JVRE Shadertoy\\JVRE Shadertoy.exe",
+    "bin": "JVRE-shadertoy\\JVRE-shadertoy.exe",
     "shortcuts": [
-        ["JVRE Shadertoy\\JVRE Shadertoy.exe", "JVRE Shadertoy"]
+        ["JVRE-shadertoy\\JVRE-shadertoy.exe", "JVRE-shadertoy"]
     ],
     "checkver": "github",
     "autoupdate": {
         "architecture": {
             "64bit": {
-                "url": "https://github.com/Milquetoad/shadertoy/releases/download/v$version/JVRE-Shadertoy-$version-windows-x64.zip"
+                "url": "https://github.com/Milquetoad/shadertoy/releases/download/v$version/JVRE-shadertoy-$version-windows-x64.zip"
             }
         }
     }

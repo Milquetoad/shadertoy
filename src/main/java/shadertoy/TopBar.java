@@ -48,7 +48,7 @@ public final class TopBar {
 
         g.fillRect(0, 0, w, barH, BG);
         g.fillRect(0, barH - Math.max(1f, scale), w, Math.max(1f, scale), BORDER);
-        g.text(font, "JVRE Shadertoy", pad, textY, fontPx, TITLE);
+        g.text(font, "JVRE-shadertoy", pad, textY, fontPx, TITLE);
 
         Action action = Action.NONE;
         float x = w - pad;
