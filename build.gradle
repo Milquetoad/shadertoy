@@ -20,7 +20,7 @@ ext {
 
 dependencies {
     // The whole point: depend on jvre like any other library.
-    implementation 'io.github.milquetoad:jvre:1.2.2'
+    implementation 'io.github.milquetoad:jvre:1.2.3'
 
     // Import the same LWJGL BOM jvre uses (3.3.4) so our natives line up with the
     // exact LWJGL version jvre was built against -- no version pinned per line.
