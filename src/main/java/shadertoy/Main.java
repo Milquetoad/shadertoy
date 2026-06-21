@@ -46,7 +46,7 @@ public final class Main {
     private static final int SUPERSAMPLE = 2;             // shader renders at SSx, downsampled on display
 
     public static void main(String[] args) {
-        Window window = new Window(1280, 720, "JVRE-shadertoy");
+        Window window = new Window(1280, 720, "JVRE Shaderpad");
         window.setIcon("/icon.png");
         Instance instance = new Instance("shadertoy", false);
         Surface surface = new Surface(instance, window);

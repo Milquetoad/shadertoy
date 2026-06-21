@@ -1,4 +1,4 @@
-# Publishing JVRE-shadertoy (winget)
+# Publishing JVRE Shaderpad (winget)
 
 The Gradle build produces a self-contained Windows app (bundled JRE + LWJGL
 natives — users don't need Java installed). From there you publish a GitHub
@@ -13,8 +13,8 @@ Release and submit it to winget.
 ## 1. Build the installer (I've wired these tasks up)
 
 ```sh
-./gradlew jpackageMsi     # build/jpackage/JVRE-shadertoy-<ver>.msi    (installer — the winget artifact)
-./gradlew packageZip      # build/distributions/JVRE-shadertoy-<ver>-windows-x64.zip   (optional: winget-portable)
+./gradlew jpackageMsi     # build/jpackage/JVRE-Shaderpad-<ver>.msi    (installer — the winget artifact)
+./gradlew packageZip      # build/distributions/JVRE-Shaderpad-<ver>-windows-x64.zip   (optional: winget-portable)
 ```
 
 - `jpackageMsi` needs the **WiX Toolset v3** on PATH
@@ -29,8 +29,8 @@ Release and submit it to winget.
 # tag and create the release with the installer attached
 git tag v1.0.0 && git push origin v1.0.0
 gh release create v1.0.0 \
-  build/jpackage/JVRE-shadertoy-1.0.0.msi \
-  --title "JVRE-shadertoy 1.0.0" --notes "First release."
+  build/jpackage/JVRE-Shaderpad-1.0.0.msi \
+  --title "JVRE Shaderpad 1.0.0" --notes "First release."
 ```
 
 (Use the zip path instead if you went the portable route.) The release asset URL
@@ -42,17 +42,17 @@ Easiest via `wingetcreate` — it autodetects the installer and opens the PR for
 
 ```sh
 winget install Microsoft.WingetCreate
-wingetcreate new https://github.com/Milquetoad/shadertoy/releases/download/v1.0.0/JVRE-shadertoy-1.0.0.msi
-# answer the prompts (PackageIdentifier e.g. Milquetoad.JVREShadertoy, publisher, license, etc.)
+wingetcreate new https://github.com/Milquetoad/shadertoy/releases/download/v1.0.0/JVRE-Shaderpad-1.0.0.msi
+# answer the prompts (PackageIdentifier e.g. Milquetoad.JVREShaderpad, publisher, license, etc.)
 wingetcreate submit --token <your-github-PAT>
 ```
 
 This opens a PR against `microsoft/winget-pkgs`. Their CI validates it and a
 moderator reviews (usually a day or two). Notes:
-- **PackageIdentifier** must be `Publisher.Package`, e.g. `Milquetoad.JVREShadertoy`.
+- **PackageIdentifier** must be `Publisher.Package`, e.g. `Milquetoad.JVREShaderpad`.
 - For the **zip as a portable** instead of an MSI: `wingetcreate new <zip-url>`,
-  choose installer type `portable`, command `JVRE-shadertoy\JVRE-shadertoy.exe`.
-- Future versions: `wingetcreate update Milquetoad.JVREShadertoy --version <new> --urls <new-url>`.
+  choose installer type `portable`, command `JVRE-Shaderpad\JVRE-Shaderpad.exe`.
+- Future versions: `wingetcreate update Milquetoad.JVREShaderpad --version <new> --urls <new-url>`.
 
 ## What I can't do for you
 

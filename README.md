@@ -1,8 +1,12 @@
-# shadertoy
+# JVRE Shaderpad
 
-A [Shadertoy](https://www.shadertoy.com/) clone built as the first proper dogfood of
+A standalone, **[Shadertoy](https://www.shadertoy.com/)-compatible** live GLSL shader
+editor, built as the first proper dogfood of
 [jvre](https://github.com/Milquetoad/jvre) (Java + Vulkan rendering framework). Two
 panes: write a GLSL fragment shader on the left, see it rendered live on the right.
+
+Not affiliated with or endorsed by Shadertoy; "Shadertoy" is used only to describe
+shader-format compatibility.
 
 jvre is consumed here **exactly as an external user would** -- the published Maven
 Central artifact only, never the jvre source tree. Friction and gaps found while

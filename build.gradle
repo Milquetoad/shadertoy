@@ -70,8 +70,8 @@ tasks.named('run') {
 
 def jpackageInput = layout.buildDirectory.dir('jpackage-input')
 def jpackageOut   = layout.buildDirectory.dir('jpackage')
-def appName       = 'JVRE-shadertoy'        // installed/launcher name
-def appBaseName   = 'JVRE-shadertoy'        // archive base name
+def appName       = 'JVRE-Shaderpad'        // installed/launcher name
+def appBaseName   = 'JVRE-Shaderpad'        // archive base name
 def appIcon       = file('packaging/icon/jvre-shadertoy.ico')
 def osName        = org.gradle.internal.os.OperatingSystem.current().isWindows() ? 'windows'
                   : org.gradle.internal.os.OperatingSystem.current().isMacOsX()  ? 'macos' : 'linux'
