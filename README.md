@@ -40,3 +40,11 @@ downloads Gradle, jvre, and the LWJGL natives for your platform.
 - **M3** -- full Shadertoy uniform parity (`iTime`, `iMouse`, `iFrame`, ...).
 - **M4** -- multipass buffers, texture/cubemap/volume/keyboard/audio channels.
 - **M5** -- polish: splitter, syntax highlighting, examples, save/load, frame export.
+
+## License
+
+Copyright (C) 2026 Peder Godal.
+
+JVRE Shaderpad is licensed under the **GNU Affero General Public License v3.0**
+(see [`LICENSE`](LICENSE)) -- matching [jvre](https://github.com/Milquetoad/jvre),
+which it bundles.

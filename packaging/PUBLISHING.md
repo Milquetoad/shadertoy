@@ -6,8 +6,8 @@ Release and submit it to winget.
 
 ## 0. One-time prerequisites
 
-- **Add a LICENSE file** to the repo root. winget requires a license; pick an
-  SPDX id (e.g. `MIT`, `Apache-2.0`, or `Proprietary`).
+- A LICENSE file is in the repo root (**AGPL-3.0**, matching jvre, which the app
+  bundles). The winget SPDX id is `AGPL-3.0`.
 - Bump `version` in `build.gradle` for each release (currently `1.0.0`).
 
 ## 1. Build the installer (I've wired these tasks up)
