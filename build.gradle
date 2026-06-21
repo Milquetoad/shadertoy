@@ -5,6 +5,8 @@ plugins {
     id 'application'
 }
 
+version = '1.0.0'
+
 repositories {
     mavenCentral()
     maven { url 'https://jitpack.io' }   // fallback distribution for jvre
@@ -53,5 +55,93 @@ tasks.named('run') {
     // option elsewhere, so add it only on macOS.
     if (org.gradle.internal.os.OperatingSystem.current().isMacOsX()) {
         jvmArgs '-XstartOnFirstThread'
+    }
+}
+
+// ----------------------------------------------------------------------------
+// Native packaging via jpackage (ships the app + a bundled JRE + LWJGL natives,
+// so end users don't need Java installed). Windows-focused; the same tasks work
+// on other OSes if you also flip `lwjglNatives` above.
+//
+//   ./gradlew jpackageImage  -> build/jpackage/Shadertoy/  (folder + Shadertoy.exe)
+//   ./gradlew packageZip     -> build/distributions/Shadertoy-<ver>-<os>.zip
+//   ./gradlew jpackageMsi    -> build/jpackage/Shadertoy-<ver>.msi  (needs WiX)
+// ----------------------------------------------------------------------------
+
+def jpackageInput = layout.buildDirectory.dir('jpackage-input')
+def jpackageOut   = layout.buildDirectory.dir('jpackage')
+def appName       = 'JVRE Shadertoy'        // installed/launcher name
+def appBaseName   = 'JVRE-Shadertoy'        // file-friendly name for archives
+def appIcon       = file('packaging/icon/jvre-shadertoy.ico')
+def osName        = org.gradle.internal.os.OperatingSystem.current().isWindows() ? 'windows'
+                  : org.gradle.internal.os.OperatingSystem.current().isMacOsX()  ? 'macos' : 'linux'
+
+def jpackageLauncher = javaToolchains.launcherFor {
+    languageVersion = JavaLanguageVersion.of(21)
+}
+def jpackageExe = jpackageLauncher.map {
+    def bin = org.gradle.internal.os.OperatingSystem.current().isWindows() ? 'bin/jpackage.exe' : 'bin/jpackage'
+    it.metadata.installationPath.file(bin).asFile.absolutePath
+}
+
+// Stage just the jars (deps + app) jpackage puts on the classpath -- no loose
+// class/resource dirs from the runtime classpath.
+tasks.register('stageJpackage', Sync) {
+    dependsOn tasks.named('jar')
+    from(configurations.runtimeClasspath.filter { it.name.endsWith('.jar') })
+    from(tasks.named('jar'))
+    into jpackageInput
+}
+
+def commonJpackageArgs = { ->
+    [
+        '--name', appName,
+        '--app-version', project.version,
+        '--vendor', 'Milquetoad',
+        '--input', jpackageInput.get().asFile.absolutePath,
+        '--main-jar', tasks.named('jar').get().archiveFileName.get(),
+        '--main-class', 'shadertoy.Main',
+        '--icon', appIcon.absolutePath,
+        // LWJGL needs sun.misc.Unsafe (jdk.unsupported); AWT FileDialog/ImageIO need
+        // java.desktop. jpackage jlinks a runtime with exactly these.
+        '--add-modules', 'java.base,java.desktop,jdk.unsupported',
+        '--dest', jpackageOut.get().asFile.absolutePath,
+    ]
+}
+
+// Self-contained app folder (no extra tooling required).
+tasks.register('jpackageImage', Exec) {
+    group = 'distribution'
+    description = 'Build a self-contained app image (folder + launcher) with a bundled JRE.'
+    dependsOn 'stageJpackage'
+    doFirst {
+        delete jpackageOut.get().asFile.toPath().resolve(appName).toFile()
+        executable jpackageExe.get()
+        args(['--type', 'app-image'] + commonJpackageArgs())
+    }
+}
+
+// Zip of the app image -- the artifact for a GitHub Release (and Scoop / winget portable).
+tasks.register('packageZip', Zip) {
+    group = 'distribution'
+    description = 'Zip the jpackage app image for distribution.'
+    dependsOn 'jpackageImage'
+    from(layout.buildDirectory.dir("jpackage/${appName}"))
+    into appName
+    archiveBaseName = appBaseName
+    archiveVersion = project.version
+    archiveClassifier = "${osName}-x64"
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+}
+
+// Windows MSI installer (winget-friendly). Requires the WiX Toolset v3 on PATH.
+tasks.register('jpackageMsi', Exec) {
+    group = 'distribution'
+    description = 'Build a Windows MSI installer (requires WiX Toolset v3).'
+    dependsOn 'stageJpackage'
+    doFirst {
+        executable jpackageExe.get()
+        args(['--type', 'msi',
+              '--win-menu', '--win-shortcut', '--win-dir-chooser', '--win-per-user-install'] + commonJpackageArgs())
     }
 }
