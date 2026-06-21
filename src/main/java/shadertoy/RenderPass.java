@@ -55,9 +55,8 @@ public final class RenderPass {
         front = renderer.createRenderTarget(width, height, format, Filter.LINEAR);
         if (pingPong) back = renderer.createRenderTarget(width, height, format, Filter.LINEAR);
 
-        byte[] vs = GlslCompiler.compile(ShaderTemplate.VERTEX, GlslCompiler.VERTEX, "pass.vert");
-        byte[] fs = GlslCompiler.compile(ShaderTemplate.fragment(combinedSource, toDisplay),
-                GlslCompiler.FRAGMENT, "pass.frag");
+        byte[] vs = ShaderCompiler.compileVertex(ShaderTemplate.VERTEX, "pass.vert");
+        byte[] fs = ShaderCompiler.compileFragment(ShaderTemplate.fragment(combinedSource, toDisplay), "pass.frag");
         VertexLayout layout = VertexLayout.builder(2 * Float.BYTES)
                 .attribute(0, AttribFormat.VEC2, 0)
                 .build();
@@ -73,18 +72,12 @@ public final class RenderPass {
 
     /** Hot-swap a new shader body; last-good-on-error, returns diagnostics. */
     public List<ShaderDiagnostic> reload(String combinedSource) {
-        String fragSrc = ShaderTemplate.fragment(combinedSource, toDisplay);
-        // Validate (and collect diagnostics) with jvre's compiler; errors are the same
-        // at any optimization level. The bytes we actually render are our own O0 build.
         try {
-            ShaderCompiler.compileFragment(fragSrc, "pass.frag");
+            pipeline.reloadShaders(ShaderTemplate.VERTEX, ShaderTemplate.fragment(combinedSource, toDisplay));
+            return List.of();
         } catch (ShaderCompileException e) {
             return e.errors();
         }
-        pipeline.reloadShaders(
-                GlslCompiler.compile(ShaderTemplate.VERTEX, GlslCompiler.VERTEX, "pass.vert"),
-                GlslCompiler.compile(fragSrc, GlslCompiler.FRAGMENT, "pass.frag"));
-        return List.of();
     }
 
     public void resize(int w, int h) {
